@@ -46,8 +46,8 @@ public class findNumberInMatrix {
         return false;
     }
 
-    // 二分查找， 最简单的想法 我们已经每行都是排好序的了， 那么直接对每行进行二分查找， 时间为O(nlogm)
-    // 再优化， 先对第一行和第一列进行二分查找， 排除大于target的行和列， 对于大于target的它们， 它们接下来的数也会是大于的
+    // 二分查找，最简单的想法 我们已经每行都是排好序的了， 那么直接对每行进行二分查找，时间为O(nlogm)
+    // 再优化，先对第一行和第一列进行二分查找，排除大于target的行和列， 对于大于target的它们，它们接下来的数也会是大于的
     // 但是如果再仔细去思考，是可以渐渐演变成方法一的
     public static boolean findNumberIn2DArray2(int[][] matrix, int target){
         if(matrix.length == 0 || matrix[0].length == 0)
