@@ -8,7 +8,7 @@ public class replaceBlank {
     // 这样当我们从后往前移动的时候，就不需要考虑移动的问题
 
     // 再比如 对于两个排好序的数组合并， 假设A1足够大， 大到能容纳A2。 那么我们分别比较A1和A2最大数，然后在放入A1尾巴
-    // 是不是要比从头开始遍历快
+    // 是不是要比从头开始遍历快(查看 leetcode 面试题 10.01. 合并排序的数组)
     public static void main(String[] args) {
         // 测试1： 包含空格
         // 输入： "We are happy."
