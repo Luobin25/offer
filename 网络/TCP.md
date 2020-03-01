@@ -1,6 +1,6 @@
 # TCP
 
-本篇围绕着TCP的特性来讲解,前篇文章我们讲述了UDP和TCP的一些原理,如果你还不清楚,请参考[TCPorUDP](https://github.com/Luobin25/offer/blob/backup/%E7%BD%91%E7%BB%9C/TCPorUDP.md)
+本篇围绕着TCP的特性来讲解,前篇文章我们讲述了UDP和TCP的一些原理,如果你还不清楚,请参考[TCPorUDP](./TCPorUDP.md)
 
 ![tcp header](http://telescript.denayer.wenk.be/~hcr/cn/idoceo/images/tcp_header.gif)
 
