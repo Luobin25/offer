@@ -57,5 +57,5 @@ HTTP/2 中，同域名下所有通信都在单个连接上完成，该连接可�
 
 
 参考:  
-[HTTP 协议入门 - 阮一峰的网络日志](http://www.ruanyifeng.com/blog/2016/08/http.html)
-[扩展 · http2讲解](https://ye11ow.gitbooks.io/http2-explained/content/part7.html)
+[HTTP 协议入门 - 阮一峰的网络日志](http://www.ruanyifeng.com/blog/2016/08/http.html)  
+[扩展 · http2讲解](https://ye11ow.gitbooks.io/http2-explained/content/part7.html)  
