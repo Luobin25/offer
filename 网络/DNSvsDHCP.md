@@ -9,7 +9,7 @@ DHCP(动态主机设置协议) 通常被应用在大型的局域网环境中,主
 ![DHCP](https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/DHCP_session.svg/800px-DHCP_session.svg.png)
 
 我们通过进行一次抓包来演示:  
-![DHCP Discover](pic/dhcp_connect.png)
+![DHCP Discover](pic/dhcp_request.png)
 
 第一步(Discover):  
 在跟dhcp通讯时,我们此刻时没有IP地址的,所以用`(0.0.0.0)`来代替. 然后对于DHCP地址,我们也是不知道的,我们用`(255.255.255.255)`来代替,表示**广播查询**  
