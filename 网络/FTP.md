@@ -8,7 +8,7 @@ ftp分为两个步骤
 
 > 存在着两次TCP连接， 第一次TCP连接时建立control flow（控制流）， 第二次TCP连接时建立data flow（数据流）。我们讨论的主动或者被动只是在第二次连接有区别
 
-![active mode]https://securitywing.com/wp-content/uploads/2013/07/active-FTP-mode.jpg)
+![active mode](https://securitywing.com/wp-content/uploads/2013/07/active-FTP-mode.jpg)
 
 先来看主动模式的步骤  
 当进行完第一次连接时， 客户端会告诉服务端它开启了哪个端口用作数据流的传输。然后注意图片细节， 服务器会用20端口向其发出TCP连接请求，请求成功进行数据传输
@@ -27,14 +27,19 @@ ftp分为两个步骤
 ftp协议是只用来数据传输的，不考虑数据的安全性，如果两端链路之间存在有人窃听的话，那么数据就会被盗走。 所以`ftps`类似于`https`， 利用了`SSL`来实现数据加密的功能
 
 ## ftp传输一个文件的时候快吗？
-来自[FTP must die](http://mywiki.wooledge.org/FtpMustDie)中，有兴趣的同学可以参考
+来自[FTP must die](http://mywiki.wooledge.org/FtpMustDie)中的第7部分，有兴趣的同学可以参考
 
 这里只说结论， 对于一个文件的传输， ftp需要大约10次round trip， 而http仅仅需要2次round trip。 如果传输很多文件的话， 则差异没那么大
 
 # SFTP
-首先 sftp 可以实现ftps同样的功能， 上传，下载和加密。 其次， 它是基于ssh的，它们仅需要使用ssh的22端口（所以在配置上方便快捷而且也降低了安全风险）。再者，该功能是直接镶嵌在ssh上的
+首先 sftp 可以实现ftps同样的功能， 上传，下载和加密。 其次， 它是基于ssh的，它们仅需要使用ssh的22端口（所以在配置上方便快捷而且也降低了安全风险）。再者，该功能是直接镶嵌在ssh上的,会随着ssh的更新而更新
 
+目前来说,因为FTP连接需要开双端口的弊端,再加之,为了保证数据安全,还要搭配上`SSL`来加密,已经逐渐开始被淘汰了  
+如果你是云上用户(sftp)可以满足你的需求.除此之外,很多学校企业也都开始尝试使用http来传输文件了.
 
+参考:  
+[sftp](https://www.ssh.com/ssh/sftp)  
+[为什么不建议在云主机上使用ftp的2个原因](https://cloud.tencent.com/developer/article/1045144)
 
 
 
