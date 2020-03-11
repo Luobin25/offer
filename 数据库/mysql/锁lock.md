@@ -94,7 +94,7 @@ A先对a为1的行加锁, B对a为2的行加锁. 当A想对a为2的行加锁的�
 - 事务B对t表结构做了修改,删除了一列
 - 事务A再一次遍历时,发现结构不对,突然少了一列...
 
-为了避免这种对元数据的修改(DDL语句)而造成的bug, MYSQL在5.5版本中引入了MDL, 它不需要显示使用,在访问一个表的时候会被自动机上. MDL的作用是,保证读写行.MDL是事务级别的, 只有在事务结束后才会释放.MDL不仅仅适用于表,同样也适用于其他对象(tablespace, schema, function, table, trigger等)
+为了避免这种对元数据的修改(DDL语句)而造成的bug, MYSQL在5.5版本中引入了MDL, 它不需要显示使用,在访问一个表的时候会被自动加上. MDL的作用是,保证读写行.MDL是事务级别的, 只有在事务结束后才会释放.MDL不仅仅适用于表,同样也适用于其他对象(tablespace, schema, function, table, trigger等)
 
 MDL也存在共享和排他锁, 对于所有的DML(增删改查语句)都会获得一个共享锁,而当使用DDL语句进行表结构修改时,需要获得一个排他锁
 
@@ -105,8 +105,75 @@ MDL锁会引发一个问题:
 - 事务D查询t表的数据(需要MDL共享锁,被阻塞)
 
 有人会问说为什么D会被阻塞,因为获取锁是一个队列模式, 前面的事务C被阻塞了, 后面自然的也要被阻塞.  
-如果该表的查询语句非常频繁,再加上客户端的重试机制. 如果DDL执行的太久,会导致**这个库的线程很快就会饱满**
+如果该表的查询语句非常频繁,再加上客户端的重试机制. 一旦DDL执行的太久,会导致**这个库的线程很快就会饱满**
 
 可以手动kill掉DDL语句或者设置一个定时器,超过多长时间就自动释放掉该锁
 
-##
+## 一个无法避免的问题,幻读
+幻读: 对于两次查询语句,会产生不同的结果.(Ps: 读提交阶段产生的问题是: 对同一语句的两次查询,会产生不同的结果)  
+来看个例子:  
+```
+CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  `d` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `c` (`c`)
+) ENGINE=InnoDB;
+insert into t values(0,0,0),(5,5,5),
+(10,10,10),(15,15,15),(20,20,20),(25,25,25);
+
+    Session A                                     Session B                          Session C
+    begin;
+select * from t where d = 5 for update  
+                                              update t set d = 5 where id = 0
+                                                                                  insert into t values(1,1,5)
+select * from t where d = 5 for update 
+    commit;
+```
+根据上文的加锁原理, 会话A只对id=5这行添加行锁. 所以会话B和会话C的操作是不会收到影响的. 有人会说, 一个是修改id=0和一个是插入, 不受到影响应该是正常的.  
+但是它违背了事务的语义性, 事务A的本意是**”我要把所有id=5的行锁住, 不准别的事务进行读写操作“**  
+再来看一个例子:
+```
+    Session A                                     Session B                          Session C
+    begin;
+select * from t where d = 5 for update
+update t set d = 100 where d = 5
+                                              update t set d = 5 where id = 0
+                                                                                  insert into t values(1,1,5)
+select * from t where d = 5 for update 
+    commit;
+```
+事务提交的顺序是 事务b 到 事务c 再到 事务a. 所以在binlog上记录的是:
+- update t set d = 5 where id = 0
+- insert into t values(1,1,5)
+- update t set d = 100 where d = 5
+如果进行主从备份时, 从库上就多了三条d为100的数据. **数据的一致性**出现了问题
+ 
+再来对幻读做个定义: 幻读指的是一个事务在前后两次查询同一个范围时, 后一次查询查到了前一次没有的结果
+- 在可重复读隔离级别下, 普通的查询是快照读, 是不会看到别的事务插入的数据的. 所以幻读只会出现在“当前读下”(select ... for update)
+- 幻读仅专指“新插入的行”(所以事务B修改还不能算)
+
+## 间隔锁
+针对上面的问题, 如果在会话A`select * from t where d = 5 for update`中对访问过的所有行进行加锁的话, 会话B会被阻塞, 但是会话C还是会执行成功. 因为会话C是新插入的一行,所以为了把C也阻塞住, 我们引用入 **间隙锁**
+
+间隙锁:就是锁两个值之间的空隙, 如果一个表中只有2个主键行, 分别为5和10. 那它们的间隙为: *(负无穷, 5), (5,10), (10,正无穷)*.一般在加锁的时候,我们会把间隙锁和行锁合起来一起加, 简称 **next-key lock**, 每个锁均为左开右闭区间, 例如: *(负无穷, 5], (5,10], (10,正无穷]*  
+
+间隙锁跟间隙锁不会产生阻塞, 它们的共同的目标是为了 **保护这个间隙不被使用**. 但你要知道间隙锁的引入, 可能会导致同样的语句锁住更大的范围,这会变相影并发度的,还加大产生死锁的可能.
+
+例如:
+```
+session A                                       session B
+begin;
+select * from t where c=10 for update;
+                                                begin;
+                                                update t set d = d+1 where c = 10;
+insert into t values(8,8,8)                   
+                                                deadlock detect
+```
+其实`next-key lock`只是一种整合,方便理解. 实际上加锁的过程中还是分两步添加锁
+- 会话A中select语句 对 c为10的行 加上 `next-key lock锁(5,10]`
+- 会话B中update时, 先是加间隙锁(5,10), 再拿行锁时,阻塞
+- 会话A插入语句时产生死锁(因为B也拿着间隙锁,导致A插入不了数据,需要等B释放, 而B需要等A释放)
+
+具体的加锁细节,算法. 参考 [何等成的加锁处理分析](http://hedengcheng.com/?p=771)
