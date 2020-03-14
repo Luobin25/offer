@@ -41,6 +41,7 @@
 > Sharding is a method for distributing data across multiple machines. MongoDB uses sharding to support deployments with very large data sets and high throughput operations.
 
 ![Shared](https://docs.mongodb.com/manual/_images/sharded-cluster-production-architecture.bakedsvg.svg)
+
 分片:
 MongoDB分片集群将数据分布在一个或多个分片上, 每个分片部署成一个MongoDB副本集,该副本集保存了集群整体数据的一部分.(因为每个分片都是一个副本集,所以它们用自己的复制机制,能够自动进行故障转移)
 
