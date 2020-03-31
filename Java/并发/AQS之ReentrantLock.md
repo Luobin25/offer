@@ -6,7 +6,7 @@ AQS是 JUC包的基础, 基本上都是围绕着AQS来沿伸的. 然而, 如果�
 - AQS是如何进行互斥的
 - 是如何引入公平原则的
 - 不考虑condition, 即wait()和notify()
-- 不考虑异常情况
+- 不考虑中断异常情况
 
 下面用的java版本是 1.8, 我们将通过两个线程来演示
 
@@ -99,7 +99,7 @@ public final void acquire(int arg) {
     // 2.1 先用addWaiter()函数把该线程加入到tail(队尾)
     // 2.2 加完线程后, 通过acquireQueued把它挂起等待
   if (!this.tryAcquire(arg) && this.acquireQueued(this.addWaiter(AbstractQueuedSynchronizer.Node.EXCLUSIVE), arg)) {
-      // 这里正常下, 不会进入到中断模式,.
+      // 这里正常下, 不会进行中断检测,.
       selfInterrupt();
   }
 }
@@ -192,7 +192,7 @@ final boolean acquireQueued(Node node, int arg) {
     try {
         // 每个node都会在一个死循环中, 除非轮到你了, 否则会一直呆在这里面
         while(true) {
-            // 如果p为head, 会想核心1我们提到的. 说明此时, 我们是阻塞队列的第一个,  那我们可以尝试的再去抢夺一下锁
+            // 如果p为head, 回想核心1我们提到的. 说明此时, 我们是阻塞队列的第一个,  那我们可以尝试的再去抢夺一下锁
             // 为什么说可以尝试, 原因1: 它是第一个
             // 原因2: 还记得当队列为null的时候, 我们会构建一个队列吗, new 一个 node 作为head.
             // 代码为: Node() {}, 它什么都没设置, 相当于一个哨兵.只是为了符合我们的编写逻辑.
@@ -253,8 +253,97 @@ private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
 // 当为true之后, 调用 parkAndCheckInterrupt() 进行阻塞
 if (shouldParkAfterFailedAcquire(p, node)) {
     // 使用的是 LockSupport.park(this); 来阻塞, 线程就会停到这里, 直到被人唤醒
+    // 被人唤醒后, 重复之前的操作, 判断前继是否为head, 是的话tryAcquire()
     interrupted |= this.parkAndCheckInterrupt();
 }
+
+// 这里用了LockSupport.park(this)来挂起线程，然后就停在这里了，等待被唤醒=======
+private final boolean parkAndCheckInterrupt() {
+    LockSupport.park(this);
+    return Thread.interrupted();
+}
+
 // 这里有个细节, 为什么我们设置完-1, 后不能直接调用parkAndCheckInterrupt() 进行阻塞呢
 // 应对在经过这个方法后，node已经是head的直接后继节点了.(注意, 阻塞和唤醒永远都是费时操作, 能白嫖就多白嫖)
 ```
+
+## 解锁操作
+```java
+public void unlock() {
+    // 注意这个1,后面会提到
+    this.sync.release(1);
+}
+
+public final boolean release(int arg) {
+    if (this.tryRelease(arg)) {
+        AbstractQueuedSynchronizer.Node h = this.head;
+        // 当我为0时, 代表我没有后继节点需要去唤醒
+        if (h != null && h.waitStatus != 0) {
+            this.unparkSuccessor(h);
+        }
+
+        return true;
+    } else {
+        return false;
+    }
+}
+
+protected final boolean tryRelease(int releases) {
+    // 记得我说的那个1吗, 释放的时候会对state进行减一操作, 如果你已经可重入N次, 那么你需要连续释放N次才行
+    int c = this.getState() - releases;
+    if (Thread.currentThread() != this.getExclusiveOwnerThread()) {
+        throw new IllegalMonitorStateException();
+    } else {
+        boolean free = false;
+        // 为0的时候, 才真正释放, 释放就是把 锁的拥有者设置为null
+        // 但本文中这个变量只用于可重入的性质, 对于锁的争夺, 全靠 state 这个变量
+        if (c == 0) {
+            free = true;
+            this.setExclusiveOwnerThread((Thread)null);
+        }
+
+        this.setState(c);
+        return free;
+    }
+}
+
+private void unparkSuccessor(Node node) {
+    int ws = node.waitStatus;
+    if (ws < 0) {
+        node.compareAndSetWaitStatus(ws, 0);
+    }
+
+    AbstractQueuedSynchronizer.Node s = node.next;
+    if (s == null || s.waitStatus > 0) {
+        s = null;
+        // 如果后继的Node状态大于0(1), 代表后继取消了, 从tail往前开始找
+        // 这里有个细节, 为什么要从后往前, 而不是直接从前往后
+        // 在 addWairer()函数中, 死循环里有一段
+        // oldTail = this.tail;
+        //    if (oldTail != null) {
+        //        node.setPrevRelaxed(oldTail);
+        //        break;
+        //    }
+        // 这里, 我么只设置了 node.prev = oldTail, 最后退出循环在设置的, oldTail.next = node
+        // 所以, 从前往后可能会造成断环
+        for(AbstractQueuedSynchronizer.Node p = this.tail; p != node && p != null; p = p.prev) {
+            if (p.waitStatus <= 0) {
+                s = p;
+            }
+        }
+    }
+
+    if (s != null) {
+        // 唤醒线程, 唤醒的线程, 从
+        // private final boolean parkAndCheckInterrupt() {
+        //      LockSupport.park(this);
+        //      return Thread.interrupted();        从这里继续
+        // }
+        LockSupport.unpark(s.thread);
+    }
+}
+```
+
+# 总结
+我参考了大神的这篇[一行一行源码分析清楚AbstractQueuedSynchronizer
+](https://javadoop.com/post/AbstractQueuedSynchronizer), 加上自己的一些分析. 所以, 如果你还不是很清楚的, 请参考他的文章
