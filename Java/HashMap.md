@@ -130,7 +130,7 @@ key == null, 代表着我们可以向HashMap存储key为null的Object, 该对象
 1. 为什么不直接采用key.hashcode() 作为idx值
 因为任意元素的hashcode()值为int, int的长度为32. 如果直接 tab[key.hashcode()]会导致溢出, 因为tab.length没那么大. 引入了 `n - 1 & hash`
 2. 为什么不直接采用key.hashcode()作为hash值
-因为n的长度一般都不大, 而hashcode()返回的int长度为32,  当进行`n - 1 & hash`时, 很多高位都会被忽略掉, 总是使用低位来比较, 冲突的概率会增加. 所以 `hash & hash >>> 16`, 完美的将hash的高位和低位结合后, 在比较
+因为n的长度一般都不大, 而hashcode()返回的int长度为32,  当进行`n - 1 & hash`时, 很多高位都会被忽略掉, 总是使用低位来比较, 冲突的概率会增加. 所以 `hash ^ hash >>> 16`, 完美的将hash的高位和低位结合后, 在比较
 
 > 无论hash()函数的内容是什么, 我们的出发原则都是**尽可能通过该函数后, 将输出值变得均匀, 分散, 充分利用空间**. 如果当你发现你在使用默认hash时, 很多key都往一个地方跑, 这时候你可以考虑稍微改造下hash()
 
